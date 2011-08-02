@@ -5,7 +5,13 @@
 #++
 
 require 'rubygems'
-require 'rubygems/security'
+
+# forward-declare
+
+module Gem::Security # :nodoc:
+  class Policy # :nodoc:
+  end
+end
 
 ##
 # Mixin methods for install and update options for Gem::Commands
@@ -17,8 +23,12 @@ module Gem::InstallUpdateOptions
 
   def add_install_update_options
     OptionParser.accept Gem::Security::Policy do |value|
+      require 'rubygems/security'
+
       value = Gem::Security::Policies[value]
-      raise OptionParser::InvalidArgument, value if value.nil?
+      valid = Gem::Security::Policies.keys.sort
+      message = "#{value} (#{valid.join ', '} are valid)"
+      raise OptionParser::InvalidArgument, message if value.nil?
       value
     end
 
@@ -58,11 +68,6 @@ module Gem::InstallUpdateOptions
       options[:force] = value
     end
 
-    add_option(:"Install/Update", '-t', '--[no-]test',
-               'Run unit tests prior to installation') do |value, options|
-      options[:test] = value
-    end
-
     add_option(:"Install/Update", '-w', '--[no-]wrappers',
                'Use bin wrappers for executables',
                'Not available on dosish platforms') do |value, options|
@@ -95,8 +100,7 @@ module Gem::InstallUpdateOptions
 
     add_option(:"Install/Update",       '--[no-]user-install',
                'Install in user\'s home directory instead',
-               'of GEM_HOME. Defaults to using home',
-               'only if GEM_HOME is not writable.') do |value, options|
+               'of GEM_HOME.') do |value, options|
       options[:user_install] = value
     end
 
@@ -106,11 +110,10 @@ module Gem::InstallUpdateOptions
       options[:development] = true
     end
 
-    add_option(:"Install/Update", "--prerelease",
-               "Install prerelease versions of a gem if",
-               "available. Defaults to skipping",
-               "prereleases.") do |value, options|
-      options[:prerelease] = true
+    add_option(:"Install/Update", "--conservative",
+                "Don't attempt to upgrade gems already",
+                "meeting version requirement") do |value, options|
+      options[:conservative] = true
     end
   end
 
@@ -118,7 +121,7 @@ module Gem::InstallUpdateOptions
   # Default options for the gem install command.
 
   def install_update_defaults_str
-    '--rdoc --no-force --no-test --wrappers'
+    '--rdoc --no-force --wrappers'
   end
 
 end

@@ -1,3 +1,5 @@
+require "rubygems/deprecate"
+
 ##
 # Available list of platforms for targeting Gem installations.
 
@@ -70,6 +72,8 @@ class Gem::Platform
                       when /hpux(\d+)/ then            [ 'hpux',      $1  ]
                       when /^java$/, /^jruby$/ then    [ 'java',      nil ]
                       when /^java([\d.]*)/ then        [ 'java',      $1  ]
+                      when /^dotnet$/ then             [ 'dotnet',    nil ]
+                      when /^dotnet([\d.]*)/ then      [ 'dotnet',    $1  ]
                       when /linux/ then                [ 'linux',     $1  ]
                       when /mingw32/ then              [ 'mingw32',   nil ]
                       when /(mswin\d+)(\_(\d+))?/ then
@@ -103,7 +107,7 @@ class Gem::Platform
   def to_s
     to_a.compact.join '-'
   end
-  
+
   def empty?
     to_s.empty?
   end
@@ -113,8 +117,13 @@ class Gem::Platform
   # the same CPU, OS and version.
 
   def ==(other)
-    self.class === other and
-      @cpu == other.cpu and @os == other.os and @version == other.version
+    self.class === other and to_a == other.to_a
+  end
+
+  alias :eql? :==
+
+  def hash # :nodoc:
+    to_a.hash
   end
 
   ##
@@ -148,6 +157,7 @@ class Gem::Platform
               when /^i686-darwin(\d)/     then ['x86',       'darwin',  $1    ]
               when /^i\d86-linux/         then ['x86',       'linux',   nil   ]
               when 'java', 'jruby'        then [nil,         'java',    nil   ]
+              when /dotnet(\-(\d+\.\d+))?/ then ['universal','dotnet',  $2    ]
               when /mswin32(\_(\d+))?/    then ['x86',       'mswin32', $2    ]
               when 'powerpc-darwin'       then ['powerpc',   'darwin',  nil   ]
               when /powerpc-darwin(\d)/   then ['powerpc',   'darwin',  $1    ]
@@ -176,5 +186,8 @@ class Gem::Platform
 
   CURRENT = 'current'
 
+  extend Deprecate
+
+  deprecate :empty?, :none, 2011, 11
 end
 

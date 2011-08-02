@@ -1,7 +1,8 @@
-#++
-# Copyright (C) 2004 Mauricio Julio Fernández Pradier
-# See LICENSE.txt for additional licensing information.
+# -*- coding: utf-8 -*-
 #--
+# Copyright (C) 2004 Mauricio Julio FernÃ¡ndez Pradier
+# See LICENSE.txt for additional licensing information.
+#++
 
 ##
 # Allows writing of tar files
@@ -229,7 +230,7 @@ class Gem::Package::TarWriter
       name = newname
 
       if name.size > 100 or prefix.size > 155 then
-        raise Gem::Package::TooLongFileName 
+        raise Gem::Package::TooLongFileName
       end
     end
 

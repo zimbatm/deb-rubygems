@@ -4,8 +4,6 @@
 # See LICENSE.txt for permissions.
 #++
 
-require 'fileutils'
-
 require 'rubygems/package'
 
 ##
@@ -14,52 +12,49 @@ require 'rubygems/package'
 
 class Gem::Format
 
-  attr_accessor :spec, :file_entries, :gem_path
-
-  extend Gem::UserInteraction
+  attr_accessor :spec
+  attr_accessor :file_entries
+  attr_accessor :gem_path
 
   ##
-  # Constructs an instance of a Format object, representing the gem's
-  # data structure.
-  #
-  # gem:: [String] The file name of the gem
-  #
+  # Constructs a Format representing the gem's data which came from +gem_path+
+
   def initialize(gem_path)
     @gem_path = gem_path
   end
 
   ##
-  # Reads the named gem file and returns a Format object, representing 
-  # the data from the gem file
-  #
-  # file_path:: [String] Path to the gem file
+  # Reads the gem +file_path+ using +security_policy+ and returns a Format
+  # representing the data in the gem
 
   def self.from_file_by_path(file_path, security_policy = nil)
-    format = nil
-
     unless File.exist?(file_path)
       raise Gem::Exception, "Cannot load gem at [#{file_path}] in #{Dir.pwd}"
     end
 
-    # check for old version gem
-    if File.read(file_path, 20).include?("MD5SUM =")
+    start = File.read file_path, 20
+
+    if start.nil? or start.length < 20 then
+      nil
+    elsif start.include?("MD5SUM =") # old version gems
       require 'rubygems/old_format'
 
-      format = Gem::OldFormat.from_file_by_path(file_path)
+      Gem::OldFormat.from_file_by_path file_path
     else
-      open file_path, Gem.binary_mode do |io|
-        format = from_io io, file_path, security_policy
+      begin
+        open file_path, Gem.binary_mode do |io|
+          from_io io, file_path, security_policy
+        end
+      rescue Gem::Package::TarInvalidError => e
+        message = "corrupt gem (#{e.class}: #{e.message})"
+        raise Gem::Package::FormatError.new(message, file_path)
       end
     end
-
-    return format
   end
 
   ##
-  # Reads a gem from an io stream and returns a Format object, representing
-  # the data from the gem file
-  #
-  # io:: [IO] Stream from which to read the gem
+  # Reads a gem from +io+ at +gem_path+ using +security_policy+ and returns a
+  # Format representing the data from the gem
 
   def self.from_io(io, gem_path="(io)", security_policy = nil)
     format = new gem_path

@@ -5,24 +5,49 @@
 #++
 
 require 'tsort'
+require 'rubygems/deprecate'
+
+##
+# Gem::DependencyList is used for installing and uninstalling gems in the
+# correct order to avoid conflicts.
 
 class Gem::DependencyList
+  attr_reader :specs
 
   include Enumerable
   include TSort
 
-  def self.from_source_index(src_index)
-    deps = new
+  ##
+  # Allows enabling/disabling use of development dependencies
 
-    src_index.each do |full_name, spec|
-      deps.add spec
-    end
+  attr_accessor :development
 
-    deps
+  ##
+  # Creates a DependencyList from the current specs.
+
+  def self.from_specs
+    list = new
+    list.add(*Gem::Specification.map)
+    list
   end
 
-  def initialize
+  ##
+  # Creates a DependencyList from a Gem::SourceIndex +source_index+
+
+  def self.from_source_index(ignored=nil)
+    warn "NOTE: DependencyList.from_source_index ignores it's arg" if ignored
+
+    from_specs
+  end
+
+  ##
+  # Creates a new DependencyList.  If +development+ is true, development
+  # dependencies will be included.
+
+  def initialize development = false
     @specs = []
+
+    @development = development
   end
 
   ##
@@ -32,9 +57,14 @@ class Gem::DependencyList
     @specs.push(*gemspecs)
   end
 
+  def clear
+    @specs.clear
+  end
+
   ##
-  # Return a list of the specifications in the dependency list, sorted in
-  # order so that no spec in the list depends on a gem earlier in the list.
+  # Return a list of the gem specifications in the dependency list, sorted in
+  # order so that no gemspec in the list depends on a gemspec earlier in the
+  # list.
   #
   # This is useful when removing gems from a set of installed gems.  By
   # removing them in the returned order, you don't get into as many dependency
@@ -77,22 +107,41 @@ class Gem::DependencyList
     @specs.find { |spec| spec.full_name == full_name }
   end
 
+  def inspect # :nodoc:
+    "#<%s:0x%x %p>" % [self.class, object_id, map { |s| s.full_name }]
+  end
+
   ##
   # Are all the dependencies in the list satisfied?
 
   def ok?
-    @specs.all? do |spec|
-      spec.runtime_dependencies.all? do |dep|
-        @specs.find { |s| s.satisfies_requirement? dep }
+    why_not_ok?(:quick).empty?
+  end
+
+  def why_not_ok? quick = false
+    unsatisfied = Hash.new { |h,k| h[k] = [] }
+    each do |spec|
+      spec.runtime_dependencies.each do |dep|
+        inst = Gem::Specification.any? { |installed_spec|
+          dep.name == installed_spec.name and
+            dep.requirement.satisfied_by? installed_spec.version
+        }
+
+        unless inst or @specs.find { |s| s.satisfies_requirement? dep } then
+          unsatisfied[spec.name] << dep
+          return unsatisfied if quick
+        end
       end
     end
+
+    unsatisfied
   end
 
   ##
-  # Is is ok to remove a gem from the dependency list?
+  # Is is ok to remove a gemspec from the dependency list?
   #
   # If removing the gemspec creates breaks a currently ok dependency, then it
-  # is NOT ok to remove the gem.
+  # is NOT ok to remove the gemspec.
 
   def ok_to_remove?(full_name)
     gem_to_remove = find_name full_name
@@ -117,13 +166,28 @@ class Gem::DependencyList
     }
   end
 
+  ##
+  # Remove everything in the DependencyList that matches but doesn't
+  # satisfy items in +dependencies+ (a hash of gem names to arrays of
+  # dependencies).
+
+  def remove_specs_unsatisfied_by dependencies
+    specs.reject! { |spec|
+      dep = dependencies[spec.name]
+      dep and not dep.requirement.satisfied_by? spec.version
+    }
+  end
+
+  ##
+  # Removes the gemspec matching +full_name+ from the dependency list
+
   def remove_by_name(full_name)
     @specs.delete_if { |spec| spec.full_name == full_name }
   end
 
   ##
   # Return a hash of predecessors.  <tt>result[spec]</tt> is an Array of
-  # gemspecs that have a dependency satisfied by the named spec.
+  # gemspecs that have a dependency satisfied by the named gemspec.
 
   def spec_predecessors
     result = Hash.new { |h,k| h[k] = [] }
@@ -152,12 +216,16 @@ class Gem::DependencyList
   def tsort_each_child(node, &block)
     specs = @specs.sort.reverse
 
-    node.dependencies.each do |dep|
+    dependencies = node.runtime_dependencies
+    dependencies.push(*node.development_dependencies) if @development
+
+    dependencies.each do |dep|
       specs.each do |spec|
         if spec.satisfies_requirement? dep then
           begin
             yield spec
           rescue TSort::Cyclic
+            # do nothing
           end
           break
         end
@@ -172,14 +240,13 @@ class Gem::DependencyList
   # +ignored+.
 
   def active_count(specs, ignored)
-    result = 0
-
-    specs.each do |spec|
-      result += 1 unless ignored[spec.full_name]
-    end
-
-    result
+    specs.count { |spec| ignored[spec.full_name].nil? }
   end
-
 end
 
+class Gem::DependencyList
+  class << self
+    extend Deprecate
+    deprecate :from_source_index, "from_specs", 2011, 11
+  end
+end
