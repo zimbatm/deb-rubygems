@@ -3,7 +3,7 @@
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/rules/dpatch.mk
 
-DEB_INSTALL_CHANGELOGS_ALL = ChangeLog debian/README.Debian
+DEB_INSTALL_CHANGELOGS_ALL = History.txt debian/README.Debian
 
 RUBY18 = /usr/bin/ruby1.8
 RUBY19 = /usr/bin/ruby1.9.1
@@ -39,7 +39,7 @@ build/rubygems1.9.1::
 
 build/rubygems-doc::
 	find lib -name "*.rb" | xargs $(RDOC) --fmt html --title RubyGems \
-	  --line-numbers --inline-source --main README -o html README
+	  --line-numbers --inline-source --main README.rdoc -o html README.rdoc
 
 install/rubygems1.8::
 	find $(CURDIR)/debian/ -type f -name "*.in" | \
