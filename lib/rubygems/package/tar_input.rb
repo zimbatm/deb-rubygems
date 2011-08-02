@@ -1,7 +1,11 @@
+# -*- coding: iso-8859-1 -*-
 #++
 # Copyright (C) 2004 Mauricio Julio Fernández Pradier
 # See LICENSE.txt for additional licensing information.
 #--
+
+require 'zlib'
+Gem.load_yaml
 
 class Gem::Package::TarInput
 
@@ -45,6 +49,7 @@ class Gem::Package::TarInput
             sio.rewind
           end
 
+          # TODO use Gem.gunzip
           gzis = Zlib::GzipReader.new(sio || entry)
           # YAML wants an instance of IO
           @metadata = load_gemspec(gzis)
@@ -105,9 +110,12 @@ class Gem::Package::TarInput
     end
 
     @tarreader.rewind
-    @fileops = Gem::FileOperations.new
 
-    raise Gem::Package::FormatError, "No metadata found!" unless has_meta
+    unless has_meta then
+      path = io.path if io.respond_to? :path
+      error = Gem::Package::FormatError.new 'no metadata found', path
+      raise error
+    end
   end
 
   def close
@@ -137,9 +145,9 @@ class Gem::Package::TarInput
       dest = File.join destdir, entry.full_name
 
       if File.directory? dest then
-        @fileops.chmod entry.header.mode, dest, :verbose => false
+        FileUtils.chmod entry.header.mode, dest, :verbose => false
       else
-        @fileops.mkdir_p dest, :mode => entry.header.mode, :verbose => false
+        FileUtils.mkdir_p dest, :mode => entry.header.mode, :verbose => false
       end
 
       fsync_dir dest
@@ -151,9 +159,9 @@ class Gem::Package::TarInput
     # it's a file
     md5 = Digest::MD5.new if expected_md5sum
     destdir = File.join destdir, File.dirname(entry.full_name)
-    @fileops.mkdir_p destdir, :mode => 0755, :verbose => false
+    FileUtils.mkdir_p destdir, :mode => 0755, :verbose => false
     destfile = File.join destdir, File.basename(entry.full_name)
-    @fileops.chmod 0600, destfile, :verbose => false rescue nil # Errno::ENOENT
+    FileUtils.chmod 0600, destfile, :verbose => false rescue nil # Errno::ENOENT
 
     open destfile, "wb", entry.header.mode do |os|
       loop do
@@ -167,7 +175,7 @@ class Gem::Package::TarInput
       os.fsync
     end
 
-    @fileops.chmod entry.header.mode, destfile, :verbose => false
+    FileUtils.chmod entry.header.mode, destfile, :verbose => false
     fsync_dir File.dirname(destfile)
     fsync_dir File.join(File.dirname(destfile), "..")
 
@@ -199,7 +207,8 @@ class Gem::Package::TarInput
   # times.  And that's the way it is.
 
   def zipped_stream(entry)
-    if defined? Rubinius then
+    if defined? Rubinius or defined? Maglev then
+      # these implementations have working Zlib
       zis = Zlib::GzipReader.new entry
       dis = zis.read
       is = StringIO.new(dis)

@@ -1,5 +1,7 @@
 module Gem
 
+  # TODO: move this whole file back into rubygems.rb
+
   @post_install_hooks   ||= []
   @post_uninstall_hooks ||= []
   @pre_uninstall_hooks  ||= []
@@ -9,7 +11,7 @@ module Gem
   # An Array of the default sources that come with RubyGems
 
   def self.default_sources
-    %w[http://gems.rubyforge.org/]
+    %w[http://rubygems.org/]
   end
 
   ##
@@ -17,32 +19,42 @@ module Gem
   # specified in the environment
 
   def self.default_dir
-    if defined? RUBY_FRAMEWORK_VERSION then
-      File.join File.dirname(ConfigMap[:sitedir]), 'Gems',
-                ConfigMap[:ruby_version]
-    # 1.9.2dev reverted to 1.8 style path
-    elsif RUBY_VERSION > '1.9' and RUBY_VERSION < '1.9.2' then
-      File.join(ConfigMap[:libdir], ConfigMap[:ruby_install_name], 'gems',
-                ConfigMap[:ruby_version])
-    else
-      File.join(ConfigMap[:libdir], ruby_engine, 'gems',
-                ConfigMap[:ruby_version])
-    end
+    path = if defined? RUBY_FRAMEWORK_VERSION then
+             [
+               File.dirname(ConfigMap[:sitedir]),
+               'Gems',
+               ConfigMap[:ruby_version]
+             ]
+           elsif ConfigMap[:rubylibprefix] then
+             [
+              ConfigMap[:rubylibprefix],
+              'gems',
+              ConfigMap[:ruby_version]
+             ]
+           else
+             [
+               ConfigMap[:libdir],
+               ruby_engine,
+               'gems',
+               ConfigMap[:ruby_version]
+             ]
+           end
+
+    @default_dir ||= File.join(*path)
   end
 
   ##
   # Path for gems in the user's home directory
 
   def self.user_dir
-    File.join(Gem.user_home, '.gem', ruby_engine,
-              ConfigMap[:ruby_version])
+    File.join Gem.user_home, '.gem', ruby_engine, ConfigMap[:ruby_version]
   end
 
   ##
   # Default gem load path
 
   def self.default_path
-    if File.exist?(Gem.user_home)
+    if File.exist? Gem.user_home then
       [user_dir, default_dir]
     else
       [default_dir]
@@ -78,14 +90,18 @@ module Gem
   # The default system-wide source info cache directory
 
   def self.default_system_source_cache_dir
-    File.join Gem.dir, 'source_cache'
+    File.join(Gem.dir, 'source_cache')
   end
 
   ##
   # The default user-specific source info cache directory
 
   def self.default_user_source_cache_dir
-    File.join Gem.user_home, '.gem', 'source_cache'
+    #
+    # NOTE Probably an argument for moving this to per-ruby supported dirs like
+    # user_dir
+    #
+    File.join(Gem.user_home, '.gem', 'source_cache')
   end
 
   ##
@@ -98,6 +114,4 @@ module Gem
       'ruby'
     end
   end
-
 end
-

@@ -49,7 +49,7 @@ class Gem::Command
   def self.build_args
     @build_args ||= []
   end
-  
+
   def self.build_args=(value)
     @build_args = value
   end
@@ -146,6 +146,26 @@ class Gem::Command
   end
 
   ##
+  # Display to the user that a gem couldn't be found and reasons why
+
+  def show_lookup_failure(gem_name, version, errors, domain)
+    if errors and !errors.empty?
+      alert_error "Could not find a valid gem '#{gem_name}' (#{version}), here is why:"
+      errors.each { |x| say "          #{x.wordy}" }
+    else
+      alert_error "Could not find a valid gem '#{gem_name}' (#{version}) in any repository"
+    end
+
+    unless domain == :local then # HACK
+      suggestions = Gem::SpecFetcher.fetcher.suggest_gems_from_name gem_name
+
+      unless suggestions.empty?
+        alert_error "Possible alternatives: #{suggestions.join(", ")}"
+      end
+    end
+  end
+
+  ##
   # Get all gem names from the command line.
 
   def get_all_gem_names
@@ -156,12 +176,12 @@ class Gem::Command
             "Please specify at least one gem name (e.g. gem build GEMNAME)"
     end
 
-    gem_names = args.select { |arg| arg !~ /^-/ }
+    args.select { |arg| arg !~ /^-/ }
   end
 
   ##
-  # Get the single gem name from the command line.  Fail if there is no gem
-  # name or if there is more than one gem name given.
+  # Get a single gem name from the command line.  Fail if there is no gem name
+  # or if there is more than one gem name given.
 
   def get_one_gem_name
     args = options[:args]
@@ -197,7 +217,7 @@ class Gem::Command
   #   def usage
   #     "#{program_name} FILE [FILE ...]"
   #   end
-  #   
+  #
   #   def arguments
   #     "FILE          name of file to find"
   #   end
@@ -248,11 +268,12 @@ class Gem::Command
   # Invoke the command with the given list of arguments.
 
   def invoke(*args)
-    handle_options(args)
-    if options[:help]
+    handle_options args
+
+    if options[:help] then
       show_help
-    elsif @when_invoked
-      @when_invoked.call(options)
+    elsif @when_invoked then
+      @when_invoked.call options
     else
       execute
     end
@@ -362,37 +383,41 @@ class Gem::Command
   def create_option_parser
     @parser = OptionParser.new
 
-    @parser.separator("")
+    @parser.separator nil
     regular_options = @option_groups.delete :options
 
     configure_options "", regular_options
 
     @option_groups.sort_by { |n,_| n.to_s }.each do |group_name, option_list|
+      @parser.separator nil
       configure_options group_name, option_list
     end
 
+    @parser.separator nil
     configure_options "Common", Gem::Command.common_options
 
-    @parser.separator("")
     unless arguments.empty?
-      @parser.separator("  Arguments:")
+      @parser.separator nil
+      @parser.separator "  Arguments:"
       arguments.split(/\n/).each do |arg_desc|
-        @parser.separator("    #{arg_desc}")
+        @parser.separator "    #{arg_desc}"
       end
-      @parser.separator("")
     end
 
-    @parser.separator("  Summary:")
-    wrap(@summary, 80 - 4).split("\n").each do |line|
-      @parser.separator("    #{line.strip}")
+    if @summary then
+      @parser.separator nil
+      @parser.separator "  Summary:"
+      wrap(@summary, 80 - 4).split("\n").each do |line|
+        @parser.separator "    #{line.strip}"
+      end
     end
 
     if description then
       formatted = description.split("\n\n").map do |chunk|
-        wrap(chunk, 80 - 4)
-      end.join("\n")
+        wrap chunk, 80 - 4
+      end.join "\n"
 
-      @parser.separator ""
+      @parser.separator nil
       @parser.separator "  Description:"
       formatted.split("\n").each do |line|
         @parser.separator "    #{line.rstrip}"
@@ -400,10 +425,10 @@ class Gem::Command
     end
 
     unless defaults_str.empty?
-      @parser.separator("")
-      @parser.separator("  Defaults:")
+      @parser.separator nil
+      @parser.separator "  Defaults:"
       defaults_str.split(/\n/).each do |line|
-        @parser.separator("    #{line}")
+        @parser.separator "    #{line}"
       end
     end
   end
@@ -415,7 +440,7 @@ class Gem::Command
     @parser.separator "  #{header}Options:"
 
     option_list.each do |args, handler|
-      dashes = args.select { |arg| arg =~ /^-/ }
+      args.select { |arg| arg =~ /^-/ }
       @parser.on(*args) do |value|
         handler.call(value, @options)
       end
@@ -471,33 +496,33 @@ class Gem::Command
 
   # :stopdoc:
 
-  HELP = %{
-    RubyGems is a sophisticated package manager for Ruby.  This is a
-    basic help message containing pointers to more information.
+  HELP = <<-HELP
+RubyGems is a sophisticated package manager for Ruby.  This is a
+basic help message containing pointers to more information.
 
-      Usage:
-        gem -h/--help
-        gem -v/--version
-        gem command [arguments...] [options...]
+  Usage:
+    gem -h/--help
+    gem -v/--version
+    gem command [arguments...] [options...]
 
-      Examples:
-        gem install rake
-        gem list --local
-        gem build package.gemspec
-        gem help install
+  Examples:
+    gem install rake
+    gem list --local
+    gem build package.gemspec
+    gem help install
 
-      Further help:
-        gem help commands            list all 'gem' commands
-        gem help examples            show some examples of usage
-        gem help platforms           show information about platforms
-        gem help <COMMAND>           show help on COMMAND
-                                       (e.g. 'gem help install')
-        gem server                   present a web page at
-                                     http://localhost:8808/
-                                     with info about installed gems
-      Further information:
-        http://rubygems.rubyforge.org
-  }.gsub(/^    /, '')
+  Further help:
+    gem help commands            list all 'gem' commands
+    gem help examples            show some examples of usage
+    gem help platforms           show information about platforms
+    gem help <COMMAND>           show help on COMMAND
+                                   (e.g. 'gem help install')
+    gem server                   present a web page at
+                                 http://localhost:8808/
+                                 with info about installed gems
+  Further information:
+    http://rubygems.rubyforge.org
+  HELP
 
   # :startdoc:
 

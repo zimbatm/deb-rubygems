@@ -1,40 +1,10 @@
-#++
-# Copyright (C) 2004 Mauricio Julio Fern·ndez Pradier
-# See LICENSE.txt for additional licensing information.
+# -*- coding: utf-8 -*-
 #--
+# Copyright (C) 2004 Mauricio Julio Fern√°ndez Pradier
+# See LICENSE.txt for additional licensing information.
+#++
 
-require 'fileutils'
-require 'find'
-require 'stringio'
-require 'yaml'
-require 'zlib'
-
-require 'rubygems/digest/md5'
-require 'rubygems/security'
 require 'rubygems/specification'
-
-# Wrapper for FileUtils meant to provide logging and additional operations if
-# needed.
-class Gem::FileOperations
-
-  def initialize(logger = nil)
-    @logger = logger
-  end
-
-  def method_missing(meth, *args, &block)
-    case
-    when FileUtils.respond_to?(meth)
-      @logger.log "#{meth}: #{args}" if @logger
-      FileUtils.send meth, *args, &block
-    when Gem::FileOperations.respond_to?(meth)
-      @logger.log "#{meth}: #{args}" if @logger
-      Gem::FileOperations.send meth, *args, &block
-    else
-      super
-    end
-  end
-
-end
 
 module Gem::Package
 
@@ -43,8 +13,26 @@ module Gem::Package
   class ClosedIO < Error; end
   class BadCheckSum < Error; end
   class TooLongFileName < Error; end
-  class FormatError < Error; end
+  class FormatError < Error
+    attr_reader :path
 
+    def initialize message, path = nil
+      @path = path
+
+      message << " in #{path}" if path
+
+      super message
+    end
+
+  end
+
+  ##
+  # Raised when a tar file is corrupt
+
+  class TarInvalidError < Error; end
+
+  # FIX: zenspider said: does it really take an IO?
+  # passed to a method called open?!? that seems stupid.
   def self.open(io, mode = "r", signer = nil, &block)
     tar_type = case mode
                when 'r' then TarInput

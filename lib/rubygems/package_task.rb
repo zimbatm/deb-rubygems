@@ -41,7 +41,7 @@ require 'rake/packagetask'
 #
 #   require 'rubygems'
 #   require 'rubygems/package_task'
-#   
+#
 #   spec = Gem::Specification.new do |s|
 #     s.platform = Gem::Platform::RUBY
 #     s.summary = "Ruby based make-like utility."
@@ -56,7 +56,7 @@ require 'rake/packagetask'
 #   and dependencies are specified in standard Ruby syntax.
 #     EOF
 #   end
-#   
+#
 #   Gem::PackageTask.new(spec) do |pkg|
 #     pkg.need_zip = true
 #     pkg.need_tar = true
@@ -86,7 +86,7 @@ class Gem::PackageTask < Rake::PackageTask
   # Initialization tasks without the "yield self" or define operations.
 
   def init(gem)
-    super gem.name, gem.version
+    super gem.full_name, :noversion
     @gem_spec = gem
     @package_files += gem_spec.files if gem_spec.files
   end
@@ -97,21 +97,29 @@ class Gem::PackageTask < Rake::PackageTask
 
   def define
     super
-    task :package => [:gem]
-    desc "Build the gem file #{gem_file}"
-    task :gem => ["#{package_dir}/#{gem_file}"]
-    file "#{package_dir}/#{gem_file}" => [package_dir] + @gem_spec.files do
-      when_writing("Creating #{gem_spec.full_name}.gem") {
-        Gem::Builder.new(gem_spec).build
-        verbose(true) {
-          mv gem_file, "#{package_dir}/#{gem_file}"
-        }
-      }
-    end
-  end
 
-  def gem_file
-    "#{@gem_spec.full_name}.gem"
+    task :package => [:gem]
+
+    gem_file = File.basename gem_spec.cache_file
+    gem_path = File.join package_dir, gem_file
+    gem_dir  = File.join package_dir, gem_spec.full_name
+
+    desc "Build the gem file #{gem_file}"
+    task :gem => [gem_path]
+
+    trace = Rake.application.options.trace
+    Gem.configuration.verbose = trace
+
+    file gem_path => [package_dir, gem_dir] + @gem_spec.files do
+      chdir(gem_dir) do
+        when_writing "Creating #{gem_spec.file_name}" do
+          Gem::Builder.new(gem_spec).build
+          verbose trace do
+            mv gem_file, '..'
+          end
+        end
+      end
+    end
   end
 
 end
